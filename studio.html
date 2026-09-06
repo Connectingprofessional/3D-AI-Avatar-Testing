@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Astra — 3D Character Studio</title>
+<meta name="description" content="An interactive rigged 3D humanoid character you can reshape, resize, and dress, right in the browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #05070d;
+    --panel: #0c1120;
+    --panel-line: #1c2540;
+    --ink: #eef1fa;
+    --ink-dim: #8a93ab;
+    --cyan: #38d6f0;
+    --blue: #4f7cff;
+    --magenta: #ef5da8;
+  }
+
+  *, *::before, *::after{ box-sizing: border-box; }
+
+  body{
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, sans-serif;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  h1, h2, h3{
+    font-family: 'Space Grotesk', 'Inter', sans-serif;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  a{ color: inherit; }
+
+  a:focus-visible, button:focus-visible, input:focus-visible{
+    outline: 2px solid var(--cyan);
+    outline-offset: 2px;
+  }
+
+  .topbar{
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  .topbar > *{ pointer-events: auto; }
+
+  .brand{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    text-decoration: none;
+  }
+
+  .brand-mark{
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
+    background: linear-gradient(135deg, var(--cyan), var(--blue));
+    flex-shrink: 0;
+  }
+
+  .back-link{
+    font-size: 0.88rem;
+    color: var(--ink-dim);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+  }
+
+  .back-link:hover{ border-bottom-color: var(--cyan); }
+
+  #canvas-wrap{
+    position: fixed;
+    inset: 0;
+  }
+
+  canvas{ display: block; }
+
+  .panel{
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: 300px;
+    background: rgba(12,17,32,0.92);
+    backdrop-filter: blur(10px);
+    border-left: 1px solid var(--panel-line);
+    padding: 84px 22px 22px;
+    overflow-y: auto;
+    z-index: 5;
+  }
+
+  .panel h2{
+    font-size: 1.05rem;
+    margin-bottom: 4px;
+  }
+
+  .panel .sub{
+    color: var(--ink-dim);
+    font-size: 0.85rem;
+    margin-bottom: 22px;
+  }
+
+  .group{
+    margin-bottom: 22px;
+    padding-bottom: 22px;
+    border-bottom: 1px solid var(--panel-line);
+  }
+
+  .group:last-of-type{ border-bottom: none; }
+
+  .group-label{
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 12px;
+  }
+
+  .field{ margin-bottom: 14px; }
+
+  .field:last-child{ margin-bottom: 0; }
+
+  .field label{
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.82rem;
+    color: var(--ink-dim);
+    margin-bottom: 6px;
+  }
+
+  .field label span.val{ color: var(--cyan); font-variant-numeric: tabular-nums; }
+
+  input[type="range"]{
+    width: 100%;
+    accent-color: var(--cyan);
+  }
+
+  .toggle-row{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.86rem;
+    padding: 8px 0;
+  }
+
+  .toggle-row input[type="checkbox"]{
+    width: 38px;
+    height: 20px;
+    accent-color: var(--cyan);
+  }
+
+  .swatches{
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .swatch{
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .swatch.active{ border-color: var(--ink); }
+
+  .btn-reset{
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--panel-line);
+    background: transparent;
+    color: var(--ink);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+  }
+
+  .btn-reset:hover{ border-color: var(--cyan); }
+
+  .hint{
+    position: fixed;
+    left: 24px;
+    bottom: 20px;
+    font-size: 0.8rem;
+    color: var(--ink-dim);
+    z-index: 5;
+  }
+
+  @media (max-width: 720px){
+    .panel{ width: 100%; height: 46vh; top: auto; bottom: 0; border-left: none; border-top: 1px solid var(--panel-line); padding-top: 20px; }
+    .hint{ display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="brand" href="index.html">
+    <span class="brand-mark" aria-hidden="true"></span>
+    Astra
+  </a>
+  <a class="back-link" href="index.html">&larr; Back to overview</a>
+</div>
+
+<div id="canvas-wrap"></div>
+
+<div class="panel">
+  <h2>3D Character Studio</h2>
+  <div class="sub">A rigged humanoid, built and posed live in your browser.</div>
+
+  <div class="group">
+    <div class="group-label">Size &amp; shape</div>
+    <div class="field">
+      <label>Height <span class="val" id="val-height">1.00×</span></label>
+      <input type="range" id="ctrl-height" min="0.75" max="1.3" step="0.01" value="1">
+    </div>
+    <div class="field">
+      <label>Build <span class="val" id="val-build">1.00×</span></label>
+      <input type="range" id="ctrl-build" min="0.6" max="1.6" step="0.01" value="1">
+    </div>
+    <div class="field">
+      <label>Limb length <span class="val" id="val-limbs">1.00×</span></label>
+      <input type="range" id="ctrl-limbs" min="0.75" max="1.3" step="0.01" value="1">
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-label">Pose</div>
+    <div class="field">
+      <label>Arms raised <span class="val" id="val-arms">0°</span></label>
+      <input type="range" id="ctrl-arms" min="0" max="150" step="1" value="0">
+    </div>
+    <div class="field">
+      <label>Turn <span class="val" id="val-turn">0°</span></label>
+      <input type="range" id="ctrl-turn" min="-90" max="90" step="1" value="0">
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-label">Display</div>
+    <div class="toggle-row">
+      <span>Show clothes</span>
+      <input type="checkbox" id="ctrl-clothes" checked>
+    </div>
+    <div class="toggle-row">
+      <span>Show skeleton</span>
+      <input type="checkbox" id="ctrl-skeleton">
+    </div>
+    <div class="toggle-row">
+      <span>Wireframe</span>
+      <input type="checkbox" id="ctrl-wireframe">
+    </div>
+    <div class="swatches" id="swatches"></div>
+  </div>
+
+  <div class="group">
+    <button class="btn-reset" id="btn-reset">Reset to defaults</button>
+  </div>
+</div>
+
+<div class="hint">Drag to orbit &middot; scroll to zoom</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+// ---------- basic scene setup ----------
+
+const wrap = document.getElementById('canvas-wrap');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05070d);
+scene.fog = new THREE.Fog(0x05070d, 8, 22);
+
+const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(3.2, 2.0, 4.4);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+wrap.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1.0, 0);
+controls.enableDamping = true;
+controls.minDistance = 2.2;
+controls.maxDistance = 10;
+controls.maxPolarAngle = Math.PI * 0.49;
+
+const ambient = new THREE.AmbientLight(0x8fa4c9, 0.55);
+scene.add(ambient);
+
+const key = new THREE.DirectionalLight(0x9fe8ff, 1.1);
+key.position.set(3, 5, 3);
+key.castShadow = true;
+key.shadow.mapSize.set(1024, 1024);
+scene.add(key);
+
+const rim = new THREE.DirectionalLight(0x4f7cff, 0.5);
+rim.position.set(-4, 3, -2);
+scene.add(rim);
+
+// ground
+const groundGeo = new THREE.CircleGeometry(6, 48);
+const groundMat = new THREE.MeshStandardMaterial({ color: 0x0c1120, roughness: 1 });
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+const grid = new THREE.GridHelper(6, 24, 0x1c2540, 0x141b30);
+grid.position.y = 0.001;
+scene.add(grid);
+
+// ---------- humanoid rig ----------
+
+const SKIN = 0xe4b28b;
+const HAIR = 0x2b2233;
+const CLOTH_DEFAULT = 0x4f7cff;
+
+function stdMat(color){
+  return new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.05 });
+}
+
+const skinMat = stdMat(SKIN);
+const hairMat = stdMat(HAIR);
+const clothMat = stdMat(CLOTH_DEFAULT);
+
+const allMeshes = [];      // every visible body mesh (for wireframe toggle + shadows)
+const clothMeshes = [];    // clothing overlay meshes (for the clothes toggle + color)
+const limbSegments = [];   // { boneGroup, mesh, childBone, baseLen, radius } for length scaling
+const girthMeshes = [];    // meshes affected by the "build" slider
+
+function makeSegment(parentBone, baseLen, radius, color){
+  const bone = new THREE.Group();
+  parentBone.add(bone);
+
+  const geo = new THREE.CylinderGeometry(radius, radius * 0.92, baseLen, 12);
+  const mesh = new THREE.Mesh(geo, stdMat(color));
+  mesh.castShadow = true;
+  mesh.position.y = -baseLen / 2;
+  bone.add(mesh);
+  allMeshes.push(mesh);
+  girthMeshes.push({ mesh, baseRadius: radius });
+
+  const childBone = new THREE.Group();
+  childBone.position.y = -baseLen;
+  bone.add(childBone);
+
+  limbSegments.push({ boneGroup: bone, mesh, childBone, baseLen });
+  return { bone, childBone, mesh };
+}
+
+const root = new THREE.Group();
+scene.add(root);
+
+// --- torso ---
+const hips = new THREE.Group();
+hips.position.y = 1.0;
+root.add(hips);
+
+const hipsMesh = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.24, 0.28), skinMat.clone());
+hipsMesh.castShadow = true;
+hips.add(hipsMesh);
+allMeshes.push(hipsMesh);
+girthMeshes.push({ mesh: hipsMesh, baseRadius: null, isBox: true, baseSize: [0.46, 0.28] });
+
+const spine = new THREE.Group();
+spine.position.y = 0.16;
+hips.add(spine);
+const spineMesh = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.3, 0.26), skinMat.clone());
+spineMesh.castShadow = true;
+spineMesh.position.y = 0.15;
+spine.add(spineMesh);
+allMeshes.push(spineMesh);
+girthMeshes.push({ mesh: spineMesh, isBox: true, baseSize: [0.42, 0.26] });
+
+const chest = new THREE.Group();
+chest.position.y = 0.32;
+spine.add(chest);
+const chestMesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.34, 0.3), skinMat.clone());
+chestMesh.castShadow = true;
+chestMesh.position.y = 0.17;
+chest.add(chestMesh);
+allMeshes.push(chestMesh);
+girthMeshes.push({ mesh: chestMesh, isBox: true, baseSize: [0.5, 0.3] });
+
+const neck = new THREE.Group();
+neck.position.y = 0.36;
+chest.add(neck);
+const neckMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.14, 10), skinMat.clone());
+neckMesh.position.y = 0.07;
+neckMesh.castShadow = true;
+neck.add(neckMesh);
+allMeshes.push(neckMesh);
+
+const head = new THREE.Group();
+head.position.y = 0.16;
+neck.add(head);
+const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.2, 20, 16), skinMat.clone());
+headMesh.position.y = 0.2;
+headMesh.castShadow = true;
+head.add(headMesh);
+allMeshes.push(headMesh);
+
+const hairMesh = new THREE.Mesh(new THREE.SphereGeometry(0.205, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.62), hairMat.clone());
+hairMesh.position.y = 0.24;
+head.add(hairMesh);
+allMeshes.push(hairMesh);
+
+const eyeGeo = new THREE.SphereGeometry(0.022, 10, 8);
+const eyeMat = stdMat(0x14151a);
+const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+eyeL.position.set(0.075, 0.2, 0.185);
+head.add(eyeL);
+const eyeR = eyeL.clone();
+eyeR.position.x = -0.075;
+head.add(eyeR);
+allMeshes.push(eyeL, eyeR);
+
+const mouth = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 8), stdMat(0xa15c5c));
+mouth.scale.set(1.6, 0.6, 0.6);
+mouth.position.set(0, 0.12, 0.19);
+head.add(mouth);
+allMeshes.push(mouth);
+
+// --- arms ---
+function buildArm(side){
+  const sign = side === 'L' ? 1 : -1;
+  const shoulder = new THREE.Group();
+  shoulder.position.set(0.27 * sign, 0.3, 0);
+  chest.add(shoulder);
+
+  const upper = makeSegment(shoulder, 0.32, 0.075, SKIN);
+  const fore = makeSegment(upper.childBone, 0.28, 0.062, SKIN);
+  const handMesh = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.16, 0.05), skinMat.clone());
+  handMesh.position.y = -0.08;
+  handMesh.castShadow = true;
+  fore.childBone.add(handMesh);
+  allMeshes.push(handMesh);
+  girthMeshes.push({ mesh: handMesh, isBox: true, baseSize: [0.09, 0.05] });
+
+  // sleeve overlay
+  const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.078, 0.34, 12), clothMat.clone());
+  sleeve.position.y = -0.16;
+  sleeve.castShadow = true;
+  upper.bone.add(sleeve);
+  clothMeshes.push(sleeve);
+  allMeshes.push(sleeve);
+
+  return { shoulder, upper: upper.bone, fore: fore.bone };
+}
+
+const armL = buildArm('L');
+const armR = buildArm('R');
+
+// --- legs ---
+function buildLeg(side){
+  const sign = side === 'L' ? 1 : -1;
+  const thighRoot = new THREE.Group();
+  thighRoot.position.set(0.13 * sign, -0.1, 0);
+  hips.add(thighRoot);
+
+  const thigh = makeSegment(thighRoot, 0.42, 0.1, SKIN);
+  const calf = makeSegment(thigh.childBone, 0.4, 0.085, SKIN);
+  const footMesh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 0.24), stdMat(0x14151a));
+  footMesh.position.set(0, -0.03, 0.06);
+  footMesh.castShadow = true;
+  calf.childBone.add(footMesh);
+  allMeshes.push(footMesh);
+
+  // trouser leg overlay
+  const trouser = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.1, 0.44, 12), clothMat.clone());
+  trouser.position.y = -0.21;
+  trouser.castShadow = true;
+  thigh.bone.add(trouser);
+  clothMeshes.push(trouser);
+  allMeshes.push(trouser);
+
+  return { thighRoot, thigh: thigh.bone, calf: calf.bone };
+}
+
+const legL = buildLeg('L');
+const legR = buildLeg('R');
+
+// torso/hip clothing (shirt + shorts)
+const shirt = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.62, 0.36), clothMat.clone());
+shirt.position.y = 0.22;
+shirt.castShadow = true;
+chest.add(shirt);
+clothMeshes.push(shirt);
+allMeshes.push(shirt);
+
+const shorts = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.22, 0.3), clothMat.clone());
+shorts.position.y = 0.02;
+shorts.castShadow = true;
+hips.add(shorts);
+clothMeshes.push(shorts);
+allMeshes.push(shorts);
+
+// skeleton visual (lines between joints)
+const skeletonGroup = new THREE.Group();
+skeletonGroup.visible = false;
+scene.add(skeletonGroup);
+
+function addJointDot(bone){
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), new THREE.MeshBasicMaterial({ color: 0x38d6f0 }));
+  bone.add(dot);
+  skeletonGroup.userData.dots = skeletonGroup.userData.dots || [];
+  skeletonGroup.userData.dots.push(dot);
+}
+[hips, spine, chest, neck, head, armL.shoulder, armL.upper, armL.fore, armR.shoulder, armR.upper, armR.fore,
+ legL.thighRoot, legL.thigh, legL.calf, legR.thighRoot, legR.thigh, legR.calf].forEach(addJointDot);
+
+function addBoneLine(fromBone, toLocalY){
+  const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0, toLocalY, 0)]);
+  const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x38d6f0 }));
+  fromBone.add(line);
+}
+addBoneLine(hips, 0.16);
+addBoneLine(spine, 0.32);
+addBoneLine(chest, 0.36);
+addBoneLine(neck, 0.16);
+[armL, armR].forEach(a => { addBoneLine(a.upper, -0.32); addBoneLine(a.fore, -0.28); });
+[legL, legR].forEach(l => { addBoneLine(l.thigh, -0.42); addBoneLine(l.calf, -0.4); });
+
+// swap skeleton visibility with the body meshes list automatically via toggle below
+
+// ---------- controls wiring ----------
+
+const els = {
+  height: document.getElementById('ctrl-height'),
+  build: document.getElementById('ctrl-build'),
+  limbs: document.getElementById('ctrl-limbs'),
+  arms: document.getElementById('ctrl-arms'),
+  turn: document.getElementById('ctrl-turn'),
+  clothes: document.getElementById('ctrl-clothes'),
+  skeleton: document.getElementById('ctrl-skeleton'),
+  wireframe: document.getElementById('ctrl-wireframe'),
+};
+const vals = {
+  height: document.getElementById('val-height'),
+  build: document.getElementById('val-build'),
+  limbs: document.getElementById('val-limbs'),
+  arms: document.getElementById('val-arms'),
+  turn: document.getElementById('val-turn'),
+};
+
+function applyHeight(v){
+  root.scale.y = v;
+  vals.height.textContent = v.toFixed(2) + '×';
+}
+
+function applyBuild(v){
+  girthMeshes.forEach(g => {
+    if (g.isBox){
+      g.mesh.scale.x = v;
+      g.mesh.scale.z = v;
+    } else {
+      g.mesh.scale.x = v;
+      g.mesh.scale.z = v;
+    }
+  });
+  root.scale.x = v * 0.55 + 0.45; // subtle overall width follow-through
+  root.scale.z = root.scale.x;
+  vals.build.textContent = v.toFixed(2) + '×';
+}
+
+function applyLimbLength(v){
+  limbSegments.forEach(seg => {
+    seg.mesh.scale.y = v;
+    seg.mesh.position.y = -seg.baseLen / 2 * v;
+    seg.childBone.position.y = -seg.baseLen * v;
+  });
+  // keep sleeve/trouser overlays roughly matched
+  vals.limbs.textContent = v.toFixed(2) + '×';
+}
+
+function applyArms(deg){
+  const rad = THREE.MathUtils.degToRad(deg);
+  armL.shoulder.rotation.z = rad;
+  armR.shoulder.rotation.z = -rad;
+  vals.arms.textContent = Math.round(deg) + '°';
+}
+
+function applyTurn(deg){
+  root.rotation.y = THREE.MathUtils.degToRad(deg);
+  vals.turn.textContent = Math.round(deg) + '°';
+}
+
+function applyClothesVisible(on){
+  clothMeshes.forEach(m => m.visible = on);
+}
+
+function applySkeleton(on){
+  skeletonGroup.visible = on;
+  allMeshes.forEach(m => { m.material.transparent = on; m.material.opacity = on ? 0.25 : 1; });
+}
+
+function applyWireframe(on){
+  allMeshes.forEach(m => { m.material.wireframe = on; });
+}
+
+els.height.addEventListener('input', e => applyHeight(parseFloat(e.target.value)));
+els.build.addEventListener('input', e => applyBuild(parseFloat(e.target.value)));
+els.limbs.addEventListener('input', e => applyLimbLength(parseFloat(e.target.value)));
+els.arms.addEventListener('input', e => applyArms(parseFloat(e.target.value)));
+els.turn.addEventListener('input', e => applyTurn(parseFloat(e.target.value)));
+els.clothes.addEventListener('change', e => applyClothesVisible(e.target.checked));
+els.skeleton.addEventListener('change', e => applySkeleton(e.target.checked));
+els.wireframe.addEventListener('change', e => applyWireframe(e.target.checked));
+
+// color swatches for clothing
+const COLORS = [0x4f7cff, 0xef5da8, 0x38d6f0, 0xf2b705, 0x6bd88a, 0xffffff];
+const swatchWrap = document.getElementById('swatches');
+COLORS.forEach((c, i) => {
+  const b = document.createElement('button');
+  b.className = 'swatch' + (i === 0 ? ' active' : '');
+  b.style.background = '#' + c.toString(16).padStart(6, '0');
+  b.setAttribute('aria-label', 'Set clothing color');
+  b.addEventListener('click', () => {
+    clothMeshes.forEach(m => m.material.color.setHex(c));
+    [...swatchWrap.children].forEach(ch => ch.classList.remove('active'));
+    b.classList.add('active');
+  });
+  swatchWrap.appendChild(b);
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  els.height.value = 1; applyHeight(1);
+  els.build.value = 1; applyBuild(1);
+  els.limbs.value = 1; applyLimbLength(1);
+  els.arms.value = 0; applyArms(0);
+  els.turn.value = 0; applyTurn(0);
+  els.clothes.checked = true; applyClothesVisible(true);
+  els.skeleton.checked = false; applySkeleton(false);
+  els.wireframe.checked = false; applyWireframe(false);
+  clothMeshes.forEach(m => m.material.color.setHex(CLOTH_DEFAULT));
+  [...swatchWrap.children].forEach((ch, i) => ch.classList.toggle('active', i === 0));
+});
+
+// ---------- render loop ----------
+
+function onResize(){
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+window.addEventListener('resize', onResize);
+
+function animate(){
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
