@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Astra — Hologram Avatar</title>
+<meta name="description" content="A rigged, animated avatar rendered as a hologram, with voice output and a live control console.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #03050a;
+    --panel: #0a0f1e;
+    --panel-line: #1c2540;
+    --ink: #eef1fa;
+    --ink-dim: #8a93ab;
+    --cyan: #38d6f0;
+    --blue: #4f7cff;
+    --magenta: #ef5da8;
+  }
+  *, *::before, *::after{ box-sizing: border-box; }
+  body{
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, sans-serif;
+    height: 100vh;
+    overflow: hidden;
+  }
+  h1, h2, h3{ font-family: 'Space Grotesk', sans-serif; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  a{ color: inherit; }
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible{
+    outline: 2px solid var(--cyan); outline-offset: 2px;
+  }
+  .topbar{
+    position: fixed; top:0; left:0; right:0; display:flex; align-items:center; justify-content:space-between;
+    padding: 16px 24px; z-index: 10; pointer-events: none;
+  }
+  .topbar > *{ pointer-events: auto; }
+  .brand{ display:flex; align-items:center; gap:10px; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:1rem; text-decoration:none; }
+  .brand-mark{ width:22px; height:22px; border-radius:7px; background:linear-gradient(135deg, var(--cyan), var(--blue)); flex-shrink:0; }
+  .back-link{ font-size:0.88rem; color:var(--ink-dim); text-decoration:none; border-bottom:1px solid transparent; }
+  .back-link:hover{ border-bottom-color: var(--cyan); }
+
+  #canvas-wrap{ position:fixed; inset:0; }
+  canvas{ display:block; }
+
+  .rail{
+    position: fixed; top:0; right:0; height:100vh; width:340px;
+    background: rgba(10,15,30,0.9); backdrop-filter: blur(10px);
+    border-left: 1px solid var(--panel-line);
+    padding: 84px 20px 20px;
+    overflow-y: auto;
+    z-index: 6;
+    display: flex; flex-direction: column; gap: 18px;
+  }
+  .card{
+    background: var(--panel); border: 1px solid var(--panel-line); border-radius: 14px; padding: 16px 18px;
+  }
+  .card h3{ font-size: 0.92rem; margin-bottom: 4px; }
+  .card .sub{ color: var(--ink-dim); font-size: 0.8rem; margin-bottom: 12px; }
+  .note{ color: var(--ink-dim); font-size: 0.76rem; line-height: 1.5; }
+  .note strong{ color: var(--ink); }
+
+  .btn-row{ display:flex; flex-wrap:wrap; gap:8px; }
+  .chip-btn{
+    padding: 8px 13px; border-radius: 8px; border: 1px solid var(--panel-line);
+    background: transparent; color: var(--ink); font-size: 0.82rem; cursor: pointer;
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .chip-btn:hover{ border-color: var(--cyan); background: rgba(56,214,240,0.07); }
+  .chip-btn.active{ border-color: var(--cyan); background: rgba(56,214,240,0.14); }
+
+  .field{ margin-bottom: 12px; }
+  .field:last-child{ margin-bottom: 0; }
+  .field label{ display:flex; justify-content:space-between; font-size:0.8rem; color:var(--ink-dim); margin-bottom:6px; }
+  .field label span{ color: var(--cyan); }
+  input[type="range"]{ width:100%; accent-color: var(--cyan); }
+
+  textarea, input[type="text"]{
+    width: 100%; background: #060a15; border: 1px solid var(--panel-line); color: var(--ink);
+    border-radius: 8px; padding: 10px 12px; font-family: 'Inter', sans-serif; font-size: 0.86rem; resize: none;
+  }
+
+  .console-log{
+    font-family: 'JetBrains Mono', monospace; font-size: 0.74rem; color: var(--ink-dim);
+    max-height: 110px; overflow-y: auto; margin-top: 10px; line-height: 1.6;
+  }
+  .console-log .you{ color: var(--cyan); }
+  .console-log .sys{ color: var(--magenta); }
+
+  .btn-primary{
+    display:inline-block; width: 100%; text-align:center; margin-top:10px;
+    padding: 10px; border-radius: 8px; border: none; cursor: pointer;
+    background: linear-gradient(100deg, var(--cyan), var(--blue)); color:#06121a; font-weight:600; font-size:0.86rem;
+  }
+
+  .file-drop{
+    border: 1px dashed var(--panel-line); border-radius: 10px; padding: 14px; text-align: center;
+    font-size: 0.8rem; color: var(--ink-dim); cursor: pointer;
+  }
+  .file-drop:hover{ border-color: var(--cyan); }
+  #ref-preview{ width:100%; border-radius: 8px; margin-top: 10px; display:none; }
+
+  .loading{
+    position: fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background: var(--bg); z-index: 20; font-size: 0.9rem; color: var(--ink-dim); font-family:'JetBrains Mono',monospace;
+  }
+
+  @media (max-width: 860px){
+    .rail{ width: 100%; height: 50vh; top:auto; bottom:0; border-left:none; border-top:1px solid var(--panel-line); }
+  }
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">booting hologram uplink…</div>
+
+<div class="topbar">
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"></span>Astra</a>
+  <a class="back-link" href="index.html">&larr; Back to overview</a>
+</div>
+
+<div id="canvas-wrap"></div>
+
+<div class="rail">
+
+  <div class="card">
+    <h3>Playback</h3>
+    <div class="sub">Baked animations from the source rig.</div>
+    <div class="btn-row" id="anim-buttons"></div>
+  </div>
+
+  <div class="card">
+    <h3>Idle motion</h3>
+    <div class="sub">Layered on top of the animation, procedurally.</div>
+    <div class="field">
+      <label>Breathing <span id="val-breath">on</span></label>
+      <input type="range" id="ctrl-breath" min="0" max="1" step="1" value="1">
+    </div>
+    <div class="field">
+      <label>Head / eye tracking <span id="val-track">on</span></label>
+      <input type="range" id="ctrl-track" min="0" max="1" step="1" value="1">
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Hologram render</h3>
+    <div class="field">
+      <label>Bloom <span class="val" id="val-bloom">1.10</span></label>
+      <input type="range" id="ctrl-bloom" min="0" max="2.5" step="0.05" value="1.1">
+    </div>
+    <div class="field">
+      <label>Scanlines <span class="val" id="val-scan">0.35</span></label>
+      <input type="range" id="ctrl-scan" min="0" max="1" step="0.01" value="0.35">
+    </div>
+    <div class="field">
+      <label>Edge glow <span class="val" id="val-rim">1.60</span></label>
+      <input type="range" id="ctrl-rim" min="0" max="3" step="0.05" value="1.6">
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Voice output</h3>
+    <div class="sub">Browser text-to-speech, synced to a talk-glow pulse. No lip-sync visemes — this model has no mouth morph targets.</div>
+    <textarea id="speak-text" rows="2" placeholder="Type something for the avatar to say…">Systems online. Standing by.</textarea>
+    <button class="btn-primary" id="btn-speak">Speak</button>
+  </div>
+
+  <div class="card">
+    <h3>Control console</h3>
+    <div class="sub">Command-based control — <strong>not a live AI model.</strong> Try: walk, run, idle, wave, say hello, color pink.</div>
+    <input type="text" id="cmd-input" placeholder="Type a command…">
+    <div class="console-log" id="cmd-log"></div>
+  </div>
+
+  <div class="card">
+    <h3>Visual reference</h3>
+    <div class="sub">Upload a photo for side-by-side reference. Shown here only — matching the avatar to a real photo needs the same AI backend your live Emergent app uses, which isn't available client-side.</div>
+    <label class="file-drop" for="ref-input">Click to upload an image</label>
+    <input type="file" id="ref-input" accept="image/*" style="display:none;">
+    <img id="ref-preview" alt="Uploaded reference">
+  </div>
+
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+
+const wrap = document.getElementById('canvas-wrap');
+const loadingEl = document.getElementById('loading');
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x03050a);
+scene.fog = new THREE.FogExp2(0x03050a, 0.045);
+
+const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(2.6, 1.5, 3.6);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+wrap.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.9, 0);
+controls.enableDamping = true;
+controls.minDistance = 1.8;
+controls.maxDistance = 8;
+controls.maxPolarAngle = Math.PI * 0.5;
+
+// platform + grid, holographic projector vibe
+const padGeo = new THREE.CylinderGeometry(1.1, 1.2, 0.06, 48);
+const padMat = new THREE.MeshStandardMaterial({ color: 0x0a0f1e, roughness: 0.4, metalness: 0.6, emissive: 0x0a3540, emissiveIntensity: 0.4 });
+const pad = new THREE.Mesh(padGeo, padMat);
+pad.position.y = -0.03;
+scene.add(pad);
+
+const ring = new THREE.Mesh(new THREE.RingGeometry(1.05, 1.12, 64), new THREE.MeshBasicMaterial({ color: 0x38d6f0, side: THREE.DoubleSide, transparent: true, opacity: 0.7 }));
+ring.rotation.x = -Math.PI / 2;
+ring.position.y = 0.01;
+scene.add(ring);
+
+const grid = new THREE.GridHelper(10, 30, 0x14314a, 0x0a1524);
+grid.position.y = -0.02;
+scene.add(grid);
+
+const ambient = new THREE.AmbientLight(0x35507a, 0.6);
+scene.add(ambient);
+const key = new THREE.DirectionalLight(0x9fe8ff, 0.9);
+key.position.set(3, 5, 2);
+scene.add(key);
+
+// ---------- load avatar ----------
+
+let mixer, actions = {}, currentAction, headBone, hipsBone, spineBone;
+const hologramMaterials = [];
+const clock = new THREE.Clock();
+
+const loader = new GLTFLoader();
+loader.load('assets/models/soldier.glb', (gltf) => {
+  const model = gltf.scene;
+  model.scale.setScalar(1.0);
+  model.position.y = 0;
+  scene.add(model);
+
+  model.traverse((obj) => {
+    if (obj.isBone){
+      if (obj.name === 'mixamorigHead' || obj.name === 'mixamorig:Head') headBone = obj;
+      if (obj.name === 'mixamorigHips' || obj.name === 'mixamorig:Hips') hipsBone = obj;
+      if (obj.name === 'mixamorigSpine2' || obj.name === 'mixamorig:Spine2') spineBone = obj;
+    }
+    if (obj.isMesh){
+      obj.castShadow = false;
+      const baseMat = obj.material;
+      const holoMat = new THREE.MeshStandardMaterial({
+        color: 0x8fe9ff,
+        map: baseMat.map || null,
+        emissive: new THREE.Color(0x1fa9c9),
+        emissiveIntensity: 0.5,
+        roughness: 0.45,
+        metalness: 0.2,
+        transparent: true,
+        opacity: 0.92,
+      });
+      holoMat.onBeforeCompile = (shader) => {
+        shader.uniforms.uRimPower = { value: 1.6 };
+        shader.uniforms.uRimColor = { value: new THREE.Color(0x38d6f0) };
+        shader.vertexShader = shader.vertexShader.replace(
+          '#include <common>',
+          '#include <common>\nvarying vec3 vViewDirHolo;\nvarying vec3 vNormalHolo;'
+        ).replace(
+          '#include <begin_vertex>',
+          '#include <begin_vertex>\nvNormalHolo = normalize(normalMatrix * normal);'
+        ).replace(
+          '#include <project_vertex>',
+          '#include <project_vertex>\nvViewDirHolo = normalize(-mvPosition.xyz);'
+        );
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <common>',
+          '#include <common>\nuniform float uRimPower;\nuniform vec3 uRimColor;\nvarying vec3 vViewDirHolo;\nvarying vec3 vNormalHolo;'
+        ).replace(
+          '#include <dithering_fragment>',
+          `#include <dithering_fragment>
+          float rimFactor = pow(1.0 - max(dot(normalize(vNormalHolo), normalize(vViewDirHolo)), 0.0), 2.2);
+          gl_FragColor.rgb += uRimColor * rimFactor * uRimPower;`
+        );
+        holoMat.userData.shader = shader;
+      };
+      obj.material = holoMat;
+      hologramMaterials.push(holoMat);
+    }
+  });
+
+  mixer = new THREE.AnimationMixer(model);
+  gltf.animations.forEach((clip) => {
+    actions[clip.name] = mixer.clipAction(clip);
+  });
+
+  const order = ['Idle', 'Walk', 'Run', 'TPose'].filter(n => actions[n]);
+  order.forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'chip-btn' + (name === 'Idle' ? ' active' : '');
+    btn.textContent = name;
+    btn.addEventListener('click', () => playAction(name, btn));
+    document.getElementById('anim-buttons').appendChild(btn);
+  });
+
+  if (actions['Idle']){
+    currentAction = actions['Idle'];
+    currentAction.play();
+  }
+
+  loadingEl.style.display = 'none';
+}, undefined, (err) => {
+  loadingEl.textContent = 'Failed to load model — check console.';
+  console.error(err);
+});
+
+function playAction(name, btnEl){
+  const next = actions[name];
+  if (!next || next === currentAction) return;
+  next.reset().fadeIn(0.35).play();
+  if (currentAction) currentAction.fadeOut(0.35);
+  currentAction = next;
+  document.querySelectorAll('#anim-buttons .chip-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+}
+
+// ---------- post-processing (hologram render) ----------
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.1, 0.5, 0.15);
+composer.addPass(bloomPass);
+
+const scanlineShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    uTime: { value: 0 },
+    uAmount: { value: 0.35 },
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main(){
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float uTime;
+    uniform float uAmount;
+    varying vec2 vUv;
+    void main(){
+      vec4 color = texture2D(tDiffuse, vUv);
+      float scan = sin((vUv.y * 800.0) - uTime * 6.0) * 0.5 + 0.5;
+      color.rgb -= scan * uAmount * 0.12;
+      float flicker = 0.97 + 0.03 * sin(uTime * 30.0);
+      color.rgb *= flicker;
+      float vig = smoothstep(0.9, 0.25, distance(vUv, vec2(0.5)));
+      color.rgb *= mix(0.75, 1.0, vig);
+      gl_FragColor = color;
+    }
+  `
+};
+const scanlinePass = new ShaderPass(scanlineShader);
+composer.addPass(scanlinePass);
+
+// ---------- UI wiring ----------
+
+document.getElementById('ctrl-bloom').addEventListener('input', e => {
+  bloomPass.strength = parseFloat(e.target.value);
+  document.getElementById('val-bloom').textContent = bloomPass.strength.toFixed(2);
+});
+document.getElementById('ctrl-scan').addEventListener('input', e => {
+  scanlinePass.uniforms.uAmount.value = parseFloat(e.target.value);
+  document.getElementById('val-scan').textContent = e.target.value;
+});
+document.getElementById('ctrl-rim').addEventListener('input', e => {
+  const v = parseFloat(e.target.value);
+  document.getElementById('val-rim').textContent = v.toFixed(2);
+  hologramMaterials.forEach(m => { if (m.userData.shader) m.userData.shader.uniforms.uRimPower.value = v; });
+});
+
+let breathingOn = true, trackingOn = true;
+document.getElementById('ctrl-breath').addEventListener('input', e => {
+  breathingOn = e.target.value === '1';
+  document.getElementById('val-breath').textContent = breathingOn ? 'on' : 'off';
+});
+document.getElementById('ctrl-track').addEventListener('input', e => {
+  trackingOn = e.target.value === '1';
+  document.getElementById('val-track').textContent = trackingOn ? 'on' : 'off';
+});
+
+// mouse tracking target
+let mouseX = 0, mouseY = 0;
+window.addEventListener('mousemove', (e) => {
+  mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+  mouseY = (e.clientY / window.innerHeight) * 2 - 1;
+});
+
+// ---------- voice output ----------
+
+let talking = false, talkPulse = 0;
+document.getElementById('btn-speak').addEventListener('click', () => {
+  const text = document.getElementById('speak-text').value.trim();
+  if (!text) return;
+  if (!('speechSynthesis' in window)){
+    logLine('sys', 'Speech synthesis not supported in this browser.');
+    return;
+  }
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.onstart = () => { talking = true; };
+  utter.onboundary = () => { talkPulse = 1; };
+  utter.onend = () => { talking = false; };
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utter);
+});
+
+// ---------- control console (command-based, not a live LLM) ----------
+
+const logEl = document.getElementById('cmd-log');
+function logLine(kind, text){
+  const div = document.createElement('div');
+  div.className = kind;
+  div.textContent = (kind === 'you' ? '> ' : ':: ') + text;
+  logEl.appendChild(div);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+const cmdInput = document.getElementById('cmd-input');
+cmdInput.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  const raw = cmdInput.value.trim();
+  if (!raw) return;
+  logLine('you', raw);
+  handleCommand(raw.toLowerCase());
+  cmdInput.value = '';
+});
+
+function handleCommand(cmd){
+  if (['walk','run','idle','tpose'].some(n => cmd.includes(n))){
+    const name = ['walk','run','idle','tpose'].find(n => cmd.includes(n));
+    const label = name.charAt(0).toUpperCase() + name.slice(1);
+    const btn = [...document.querySelectorAll('#anim-buttons .chip-btn')].find(b => b.textContent === label);
+    if (actions[label]) { playAction(label, btn); logLine('sys', `Playing "${label}".`); }
+    else logLine('sys', `No "${label}" clip on this model.`);
+    return;
+  }
+  if (cmd.includes('wave')){
+    doWave();
+    logLine('sys', 'Waving (procedural, no baked wave clip on this rig).');
+    return;
+  }
+  if (cmd.startsWith('say ')){
+    const text = cmd.slice(4);
+    document.getElementById('speak-text').value = text;
+    document.getElementById('btn-speak').click();
+    logLine('sys', `Speaking: "${text}"`);
+    return;
+  }
+  const colorMatch = cmd.match(/color\s+(\w+)/);
+  if (colorMatch){
+    const named = { cyan:0x38d6f0, blue:0x4f7cff, pink:0xef5da8, magenta:0xef5da8, green:0x6bd88a, amber:0xf2b705, white:0xffffff };
+    const hex = named[colorMatch[1]];
+    if (hex !== undefined){
+      hologramMaterials.forEach(m => { m.emissive.setHex(hex); });
+      ring.material.color.setHex(hex);
+      logLine('sys', `Hologram tint set to ${colorMatch[1]}.`);
+    } else {
+      logLine('sys', `Unknown color "${colorMatch[1]}".`);
+    }
+    return;
+  }
+  logLine('sys', 'Command-based demo only — this box does not run a live AI model. Recognized: walk, run, idle, tpose, wave, say <text>, color <name>.');
+}
+
+let waveT = 0, waving = false;
+function doWave(){
+  waving = true;
+  waveT = 0;
+}
+
+// ---------- reference photo upload ----------
+
+document.getElementById('ref-input').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const img = document.getElementById('ref-preview');
+  img.src = url;
+  img.style.display = 'block';
+});
+
+// ---------- render loop ----------
+
+function onResize(){
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+}
+window.addEventListener('resize', onResize);
+
+function animate(){
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  const t = clock.elapsedTime;
+
+  if (mixer) mixer.update(delta);
+
+  if (breathingOn && spineBone){
+    const s = 1 + Math.sin(t * 1.6) * 0.012;
+    spineBone.scale.set(s, s, s);
+  }
+  if (trackingOn && headBone){
+    headBone.rotation.y += mouseX * 0.25 * delta * 4;
+    headBone.rotation.x += -mouseY * 0.15 * delta * 4;
+  }
+  if (waving){
+    waveT += delta;
+    if (waveT > 1.4) waving = false;
+  }
+
+  ring.rotation.z += delta * 0.15;
+
+  if (talking){
+    talkPulse *= 0.9;
+    const pulse = 0.5 + talkPulse * 0.8 + Math.sin(t * 14) * 0.15;
+    hologramMaterials.forEach(m => { m.emissiveIntensity = 0.5 + pulse * 0.6; });
+  } else {
+    hologramMaterials.forEach(m => { m.emissiveIntensity = 0.5 + Math.sin(t * 1.2) * 0.08; });
+  }
+
+  scanlinePass.uniforms.uTime.value = t;
+
+  controls.update();
+  composer.render();
+}
+animate();
+</script>
+</body>
+</html>
