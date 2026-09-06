@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Astra — Human Avatar</title>
+<meta name="description" content="A face-rigged human avatar with real blinking, eye tracking, and voice-driven lip movement.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #03050a; --panel: #0a0f1e; --panel-line: #1c2540; --ink: #eef1fa; --ink-dim: #8a93ab;
+    --cyan: #38d6f0; --blue: #4f7cff; --magenta: #ef5da8; --green: #4fd68a;
+  }
+  *, *::before, *::after{ box-sizing: border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font-family:'Inter',system-ui,sans-serif; height:100vh; overflow:hidden; }
+  h1,h2,h3{ font-family:'Space Grotesk',sans-serif; font-weight:600; margin:0; letter-spacing:-0.01em; }
+  a{ color:inherit; }
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible{ outline:2px solid var(--cyan); outline-offset:2px; }
+
+  .topbar{ position:fixed; top:0; left:0; right:0; display:flex; align-items:center; justify-content:space-between; padding:16px 24px; z-index:10; pointer-events:none; }
+  .topbar > *{ pointer-events:auto; }
+  .brand{ display:flex; align-items:center; gap:10px; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:1rem; text-decoration:none; }
+  .brand-mark{ width:22px; height:22px; border-radius:7px; background:linear-gradient(135deg,var(--cyan),var(--blue)); flex-shrink:0; }
+  .back-link{ font-size:0.88rem; color:var(--ink-dim); text-decoration:none; border-bottom:1px solid transparent; }
+  .back-link:hover{ border-bottom-color:var(--cyan); }
+
+  #canvas-wrap{ position:fixed; inset:0; }
+  canvas{ display:block; }
+
+  .rail{
+    position:fixed; top:0; right:0; height:100vh; width:340px;
+    background:rgba(10,15,30,0.9); backdrop-filter:blur(10px); border-left:1px solid var(--panel-line);
+    padding:84px 20px 20px; overflow-y:auto; z-index:6; display:flex; flex-direction:column; gap:16px;
+  }
+  .card{ background:var(--panel); border:1px solid var(--panel-line); border-radius:14px; padding:16px 18px; }
+  .card h3{ font-size:0.92rem; margin-bottom:4px; }
+  .card .sub{ color:var(--ink-dim); font-size:0.78rem; margin-bottom:12px; line-height:1.5; }
+
+  .btn-row{ display:flex; flex-wrap:wrap; gap:8px; }
+  .chip-btn{ padding:8px 13px; border-radius:8px; border:1px solid var(--panel-line); background:transparent; color:var(--ink); font-size:0.82rem; cursor:pointer; transition:border-color .15s ease, background .15s ease; }
+  .chip-btn:hover{ border-color:var(--cyan); background:rgba(56,214,240,0.07); }
+  .chip-btn.active{ border-color:var(--cyan); background:rgba(56,214,240,0.14); }
+
+  .field{ margin-bottom:12px; }
+  .field:last-child{ margin-bottom:0; }
+  .field label{ display:flex; justify-content:space-between; font-size:0.8rem; color:var(--ink-dim); margin-bottom:6px; }
+  .field label span{ color:var(--cyan); }
+  input[type="range"]{ width:100%; accent-color:var(--cyan); }
+
+  .toggle-row{ display:flex; align-items:center; justify-content:space-between; font-size:0.84rem; padding:6px 0; }
+  .toggle-row input[type="checkbox"]{ width:36px; height:19px; accent-color:var(--cyan); }
+
+  textarea, input[type="text"]{ width:100%; background:#060a15; border:1px solid var(--panel-line); color:var(--ink); border-radius:8px; padding:10px 12px; font-family:'Inter',sans-serif; font-size:0.86rem; resize:none; }
+  .btn-primary{ display:inline-block; width:100%; text-align:center; margin-top:10px; padding:10px; border-radius:8px; border:none; cursor:pointer; background:linear-gradient(100deg,var(--cyan),var(--blue)); color:#06121a; font-weight:600; font-size:0.86rem; }
+
+  .feasibility-list{ font-size:0.78rem; line-height:1.9; }
+  .feasibility-list .yes{ color:var(--green); }
+  .feasibility-list .no{ color:var(--ink-dim); }
+  .dot{ display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:8px; }
+
+  .loading{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:var(--bg); z-index:20; font-size:0.9rem; color:var(--ink-dim); font-family:'JetBrains Mono',monospace; }
+
+  @media (max-width: 860px){ .rail{ width:100%; height:56vh; top:auto; bottom:0; border-left:none; border-top:1px solid var(--panel-line); } }
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">loading avatar…</div>
+
+<div class="topbar">
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"></span>Astra</a>
+  <a class="back-link" href="index.html">&larr; Back to overview</a>
+</div>
+
+<div id="canvas-wrap"></div>
+
+<div class="rail">
+
+  <div class="card">
+    <h3>Render mode</h3>
+    <div class="btn-row">
+      <button class="chip-btn active" id="mode-natural">Natural</button>
+      <button class="chip-btn" id="mode-holo">Hologram</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Animations</h3>
+    <div class="sub">Baked clips from this export.</div>
+    <div class="btn-row" id="anim-buttons"></div>
+  </div>
+
+  <div class="card">
+    <h3>Face &amp; eyes</h3>
+    <div class="toggle-row"><span>Blinking</span><input type="checkbox" id="ctrl-blink" checked></div>
+    <div class="toggle-row"><span>Eye saccades</span><input type="checkbox" id="ctrl-eyes" checked></div>
+    <div class="toggle-row"><span>Head tracks cursor</span><input type="checkbox" id="ctrl-headtrack" checked></div>
+    <div class="toggle-row"><span>Breathing</span><input type="checkbox" id="ctrl-breath" checked></div>
+  </div>
+
+  <div class="card">
+    <h3>Size</h3>
+    <div class="field">
+      <label>Height <span id="val-height">1.00×</span></label>
+      <input type="range" id="ctrl-height" min="0.85" max="1.2" step="0.01" value="1">
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Voice output</h3>
+    <div class="sub">Real browser text-to-speech. Mouth movement is an approximation — viseme shapes cycle on word boundaries, not true phoneme timing.</div>
+    <textarea id="speak-text" rows="2">Hello. This is a live test of voice and lip movement.</textarea>
+    <button class="btn-primary" id="btn-speak">Speak</button>
+  </div>
+
+  <div class="card">
+    <h3>Feasibility: gesture library</h3>
+    <div class="feasibility-list">
+      <div><span class="dot" style="background:var(--green)"></span><span class="yes">Idle, Wave, Look around, Neck turn, Gesture</span> — embedded, working</div>
+      <div style="margin-top:8px;"><span class="dot" style="background:var(--ink-dim)"></span><span class="no">Dance, Death, Jump, No, Punch, Running, Sitting, Standing, ThumbsUp, Walking, WalkJump, Yes</span> — not in this file yet</div>
+      <div style="margin-top:8px; color:var(--ink-dim);">This rig uses standard Mixamo bone names, so those clips are addable by downloading them from Mixamo against this same skeleton — they just aren't baked into this export.</div>
+    </div>
+  </div>
+
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+
+const wrap = document.getElementById('canvas-wrap');
+const loadingEl = document.getElementById('loading');
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x03050a);
+
+const camera = new THREE.PerspectiveCamera(32, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0.2, 1.55, 1.7);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+wrap.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1.35, 0);
+controls.enableDamping = true;
+controls.minDistance = 0.6;
+controls.maxDistance = 5;
+controls.maxPolarAngle = Math.PI * 0.55;
+
+const grid = new THREE.GridHelper(6, 24, 0x14314a, 0x0a1524);
+scene.add(grid);
+
+const ambient = new THREE.AmbientLight(0x8fa4c9, 0.7);
+scene.add(ambient);
+const key = new THREE.DirectionalLight(0xffffff, 1.1);
+key.position.set(2, 4, 3);
+scene.add(key);
+const fill = new THREE.DirectionalLight(0x4f7cff, 0.35);
+fill.position.set(-3, 2, -2);
+scene.add(fill);
+
+// ---------- load avatar ----------
+
+let mixer, actions = {}, currentAction;
+let root, faceMesh, morphDict, morphInfluences;
+let boneHips, boneSpine1, boneSpine2, boneNeck, boneHead, boneLeftEye, boneRightEye;
+let naturalMaterials = new Map();
+let holoMaterials = new Map();
+let mode = 'natural';
+
+const clock = new THREE.Clock();
+
+const loader = new GLTFLoader();
+loader.load('assets/models/avatar-build.glb', (gltf) => {
+  root = gltf.scene;
+  scene.add(root);
+
+  root.traverse((obj) => {
+    if (obj.isBone || obj.type === 'Bone'){
+      if (obj.name === 'Hips') boneHips = obj;
+      if (obj.name === 'Spine1') boneSpine1 = obj;
+      if (obj.name === 'Spine2') boneSpine2 = obj;
+      if (obj.name === 'Neck') boneNeck = obj;
+      if (obj.name === 'Head') boneHead = obj;
+      if (obj.name === 'LeftEye') boneLeftEye = obj;
+      if (obj.name === 'RightEye') boneRightEye = obj;
+    }
+    if (obj.isMesh){
+      obj.frustumCulled = false;
+      naturalMaterials.set(obj, obj.material);
+
+      if (obj.morphTargetDictionary){
+        faceMesh = obj;
+        morphDict = obj.morphTargetDictionary;
+        morphInfluences = obj.morphTargetInfluences;
+      }
+
+      const baseMat = obj.material;
+      const holo = new THREE.MeshStandardMaterial({
+        color: 0x8fe9ff,
+        map: baseMat.map || null,
+        emissive: new THREE.Color(0x1fa9c9),
+        emissiveIntensity: 0.5,
+        roughness: 0.4,
+        metalness: 0.15,
+        transparent: true,
+        opacity: 0.9,
+        skinning: !!obj.isSkinnedMesh,
+        morphTargets: !!obj.morphTargetDictionary,
+        morphNormals: !!obj.morphTargetDictionary,
+      });
+      holo.onBeforeCompile = (shader) => {
+        shader.uniforms.uRimPower = { value: 1.6 };
+        shader.uniforms.uRimColor = { value: new THREE.Color(0x38d6f0) };
+        shader.vertexShader = shader.vertexShader
+          .replace('#include <common>', '#include <common>\nvarying vec3 vViewDirHolo;\nvarying vec3 vNormalHolo;')
+          .replace('#include <begin_vertex>', '#include <begin_vertex>\nvNormalHolo = normalize(normalMatrix * normal);')
+          .replace('#include <project_vertex>', '#include <project_vertex>\nvViewDirHolo = normalize(-mvPosition.xyz);');
+        shader.fragmentShader = shader.fragmentShader
+          .replace('#include <common>', '#include <common>\nuniform float uRimPower;\nuniform vec3 uRimColor;\nvarying vec3 vViewDirHolo;\nvarying vec3 vNormalHolo;')
+          .replace('#include <dithering_fragment>', `#include <dithering_fragment>
+          float rimFactor = pow(1.0 - max(dot(normalize(vNormalHolo), normalize(vViewDirHolo)), 0.0), 2.2);
+          gl_FragColor.rgb += uRimColor * rimFactor * uRimPower;`);
+        holo.userData.shader = shader;
+      };
+      holoMaterials.set(obj, holo);
+    }
+  });
+
+  mixer = new THREE.AnimationMixer(root);
+  gltf.animations.forEach((clip) => { actions[clip.name] = mixer.clipAction(clip); });
+
+  const display = [
+    ['M_Standing_Idle_001', 'Idle'],
+    ['wave_gesture', 'Wave'],
+    ['look_around', 'Look around'],
+    ['neck_turn', 'Neck turn'],
+    ['RPM_Mixamo_Compatible_SkeletalMeshAction', 'Gesture'],
+  ];
+  display.forEach(([key, label]) => {
+    if (!actions[key]) return;
+    const btn = document.createElement('button');
+    btn.className = 'chip-btn' + (key === 'M_Standing_Idle_001' ? ' active' : '');
+    btn.textContent = label;
+    btn.addEventListener('click', () => playAction(key, btn));
+    document.getElementById('anim-buttons').appendChild(btn);
+  });
+
+  if (actions['M_Standing_Idle_001']){
+    currentAction = actions['M_Standing_Idle_001'];
+    currentAction.play();
+  }
+
+  loadingEl.style.display = 'none';
+}, undefined, (err) => {
+  loadingEl.textContent = 'Failed to load model.';
+  console.error(err);
+});
+
+function playAction(key, btnEl){
+  const next = actions[key];
+  if (!next || next === currentAction) return;
+  next.reset().fadeIn(0.3).setLoop(THREE.LoopOnce, 1).clampWhenFinished = false;
+  next.setLoop(key === 'M_Standing_Idle_001' ? THREE.LoopRepeat : THREE.LoopOnce, key === 'M_Standing_Idle_001' ? Infinity : 1);
+  next.play();
+  if (currentAction) currentAction.fadeOut(0.3);
+  currentAction = next;
+  document.querySelectorAll('#anim-buttons .chip-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  if (key !== 'M_Standing_Idle_001'){
+    next.clampWhenFinished = true;
+    mixer.addEventListener('finished', function onFinish(e){
+      if (e.action !== next) return;
+      mixer.removeEventListener('finished', onFinish);
+      playAction('M_Standing_Idle_001', document.querySelector('#anim-buttons .chip-btn'));
+    });
+  }
+}
+
+// ---------- post-processing ----------
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.0, 0.5, 0.15);
+composer.addPass(bloomPass);
+const scanlineShader = {
+  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uAmount: { value: 0.0 } },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform float uTime; uniform float uAmount; varying vec2 vUv;
+    void main(){
+      vec4 color = texture2D(tDiffuse, vUv);
+      float scan = sin((vUv.y * 800.0) - uTime * 6.0) * 0.5 + 0.5;
+      color.rgb -= scan * uAmount * 0.12;
+      gl_FragColor = color;
+    }`
+};
+const scanlinePass = new ShaderPass(scanlineShader);
+composer.addPass(scanlinePass);
+
+document.getElementById('mode-natural').addEventListener('click', () => setMode('natural'));
+document.getElementById('mode-holo').addEventListener('click', () => setMode('holo'));
+function setMode(next){
+  mode = next;
+  document.getElementById('mode-natural').classList.toggle('active', mode === 'natural');
+  document.getElementById('mode-holo').classList.toggle('active', mode === 'holo');
+  bloomPass.strength = mode === 'holo' ? 1.1 : 0.0;
+  scanlinePass.uniforms.uAmount.value = mode === 'holo' ? 0.35 : 0.0;
+  const map = mode === 'holo' ? holoMaterials : naturalMaterials;
+  map.forEach((mat, mesh) => { mesh.material = mat; });
+}
+
+// ---------- UI wiring ----------
+
+let breathingOn = true, eyesOn = true, headTrackOn = true, blinkOn = true;
+document.getElementById('ctrl-breath').addEventListener('change', e => breathingOn = e.target.checked);
+document.getElementById('ctrl-eyes').addEventListener('change', e => eyesOn = e.target.checked);
+document.getElementById('ctrl-headtrack').addEventListener('change', e => headTrackOn = e.target.checked);
+document.getElementById('ctrl-blink').addEventListener('change', e => blinkOn = e.target.checked);
+
+document.getElementById('ctrl-height').addEventListener('input', e => {
+  const v = parseFloat(e.target.value);
+  if (root) root.scale.setScalar(v);
+  document.getElementById('val-height').textContent = v.toFixed(2) + '×';
+});
+
+let mouseX = 0, mouseY = 0;
+window.addEventListener('mousemove', (e) => {
+  mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+  mouseY = (e.clientY / window.innerHeight) * 2 - 1;
+});
+
+// ---------- blinking ----------
+
+let nextBlinkAt = 2;
+let blinkStart = -1;
+const BLINK_DUR = 0.16;
+
+function setMorph(name, value){
+  if (!morphDict || !(name in morphDict)) return;
+  morphInfluences[morphDict[name]] = value;
+}
+
+function updateBlink(t){
+  if (!blinkOn || !morphDict) return;
+  if (blinkStart < 0 && t >= nextBlinkAt){
+    blinkStart = t;
+  }
+  if (blinkStart >= 0){
+    const p = (t - blinkStart) / BLINK_DUR;
+    if (p >= 1){
+      setMorph('eyeBlinkLeft', 0); setMorph('eyeBlinkRight', 0);
+      blinkStart = -1;
+      nextBlinkAt = t + 2 + Math.random() * 3.5;
+    } else {
+      const v = p < 0.5 ? p / 0.5 : 1 - (p - 0.5) / 0.5;
+      setMorph('eyeBlinkLeft', v); setMorph('eyeBlinkRight', v);
+    }
+  }
+}
+
+// ---------- eye saccades ----------
+
+let eyeTargetX = 0, eyeTargetZ = 0, nextSaccadeAt = 1;
+function updateEyes(t, delta){
+  if (!boneLeftEye || !boneRightEye) return;
+  if (eyesOn){
+    if (t >= nextSaccadeAt){
+      eyeTargetX = (Math.random() - 0.5) * 0.35;
+      eyeTargetZ = (Math.random() - 0.5) * 0.25;
+      nextSaccadeAt = t + 1 + Math.random() * 2.5;
+    }
+  } else {
+    eyeTargetX = 0; eyeTargetZ = 0;
+  }
+  const lerp = 1 - Math.pow(0.001, delta);
+  boneLeftEye.rotation.y += (eyeTargetX - boneLeftEye.rotation.y) * lerp;
+  boneLeftEye.rotation.x += (eyeTargetZ - boneLeftEye.rotation.x) * lerp;
+  boneRightEye.rotation.y += (eyeTargetX - boneRightEye.rotation.y) * lerp;
+  boneRightEye.rotation.x += (eyeTargetZ - boneRightEye.rotation.x) * lerp;
+}
+
+// ---------- voice + viseme lip-sync approximation ----------
+
+const VISEMES = ['viseme_aa','viseme_E','viseme_I','viseme_O','viseme_U','viseme_PP','viseme_FF','viseme_SS','viseme_kk'];
+let currentViseme = null, visemeStrength = 0, talking = false;
+
+document.getElementById('btn-speak').addEventListener('click', () => {
+  const text = document.getElementById('speak-text').value.trim();
+  if (!text || !('speechSynthesis' in window)) return;
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.onstart = () => { talking = true; };
+  utter.onboundary = () => {
+    if (currentViseme) setMorph(currentViseme, 0);
+    currentViseme = VISEMES[Math.floor(Math.random() * VISEMES.length)];
+    visemeStrength = 1;
+  };
+  utter.onend = () => {
+    talking = false;
+    if (currentViseme) setMorph(currentViseme, 0);
+    currentViseme = null;
+    setMorph('jawOpen', 0);
+  };
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utter);
+});
+
+function updateLipsync(delta){
+  if (!morphDict) return;
+  if (talking && currentViseme){
+    visemeStrength = Math.max(0, visemeStrength - delta * 4);
+    setMorph(currentViseme, visemeStrength);
+    setMorph('jawOpen', visemeStrength * 0.35);
+  }
+}
+
+// ---------- render loop ----------
+
+function onResize(){
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+}
+window.addEventListener('resize', onResize);
+
+function animate(){
+  requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  if (mixer) mixer.update(delta);
+
+  if (breathingOn && boneSpine2){
+    const s = 1 + Math.sin(t * 1.6) * 0.01;
+    boneSpine2.scale.set(s, s, s);
+  }
+  if (headTrackOn && boneHead && boneNeck){
+    boneHead.rotation.y += mouseX * 0.2 * delta * 4;
+    boneNeck.rotation.x += -mouseY * 0.08 * delta * 4;
+  }
+
+  updateBlink(t);
+  updateEyes(t, delta);
+  updateLipsync(delta);
+
+  if (mode === 'holo'){
+    scanlinePass.uniforms.uTime.value = t;
+  }
+
+  controls.update();
+  composer.render();
+}
+animate();
+</script>
+</body>
+</html>
