@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Astra — AI 3D Avatar Studio</title>
+<meta name="description" content="Astra turns a prompt or a photo into a textured 3D model you can inspect, rig, and export.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #05070d;
+    --panel: #0c1120;
+    --panel-line: #1c2540;
+    --ink: #eef1fa;
+    --ink-dim: #8a93ab;
+    --cyan: #38d6f0;
+    --blue: #4f7cff;
+    --magenta: #ef5da8;
+  }
+
+  *, *::before, *::after{ box-sizing: border-box; }
+
+  html{ scroll-behavior: smooth; }
+
+  body{
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3{
+    font-family: 'Space Grotesk', 'Inter', sans-serif;
+    font-weight: 600;
+    line-height: 1.12;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  a{ color: inherit; }
+
+  a:focus-visible, button:focus-visible{
+    outline: 2px solid var(--cyan);
+    outline-offset: 3px;
+  }
+
+  .wrap{
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* ---------- Nav ---------- */
+
+  header{
+    padding: 28px 0 0;
+  }
+
+  .brand{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: 0.02em;
+  }
+
+  .brand-mark{
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--cyan), var(--blue));
+    flex-shrink: 0;
+  }
+
+  /* ---------- Hero ---------- */
+
+  .hero{
+    padding: 96px 0 64px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before{
+    content: "";
+    position: absolute;
+    top: -220px;
+    right: -160px;
+    width: 560px;
+    height: 560px;
+    background: radial-gradient(circle, rgba(56,214,240,0.16), transparent 65%);
+    pointer-events: none;
+  }
+
+  .hero-inner{
+    position: relative;
+    max-width: 640px;
+  }
+
+  .hero h1{
+    font-size: clamp(2.1rem, 4.4vw, 3.2rem);
+  }
+
+  .hero h1 .accent{
+    background: linear-gradient(100deg, var(--cyan), var(--blue));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .hero p{
+    margin-top: 22px;
+    font-size: 1.08rem;
+    color: var(--ink-dim);
+    max-width: 46ch;
+  }
+
+  .cta-row{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 34px;
+    align-items: center;
+  }
+
+  .btn-primary{
+    display: inline-block;
+    padding: 13px 24px;
+    border-radius: 10px;
+    background: linear-gradient(100deg, var(--cyan), var(--blue));
+    color: #06121a;
+    font-weight: 600;
+    text-decoration: none;
+    font-size: 0.98rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 0 0 rgba(56,214,240,0);
+  }
+
+  .btn-primary:hover{
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(56,214,240,0.25);
+  }
+
+  .btn-secondary{
+    display: inline-block;
+    padding: 12px 22px;
+    border-radius: 10px;
+    border: 1px solid var(--panel-line);
+    color: var(--ink);
+    text-decoration: none;
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .btn-secondary:hover{
+    border-color: var(--cyan);
+    background: rgba(56,214,240,0.06);
+  }
+
+  /* ---------- Showcase ---------- */
+
+  .showcase{
+    padding: 40px 0 96px;
+  }
+
+  .showcase-head{
+    max-width: 52ch;
+    margin-bottom: 44px;
+  }
+
+  .showcase-head h2{
+    font-size: 1.7rem;
+  }
+
+  .showcase-head p{
+    color: var(--ink-dim);
+    margin-top: 12px;
+  }
+
+  .panes{
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 22px;
+    align-items: start;
+  }
+
+  .pane{
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .pane.tall{
+    grid-row: span 2;
+  }
+
+  .pane img{
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .pane-caption{
+    padding: 18px 20px 20px;
+    border-top: 1px solid var(--panel-line);
+  }
+
+  .pane-caption .kicker{
+    color: var(--cyan);
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+
+  .pane-caption p{
+    margin: 6px 0 0;
+    color: var(--ink-dim);
+    font-size: 0.94rem;
+  }
+
+  .side-note{
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    border-radius: 16px;
+    padding: 24px;
+  }
+
+  .side-note h3{
+    font-size: 1.1rem;
+  }
+
+  .side-note p{
+    color: var(--ink-dim);
+    font-size: 0.94rem;
+    margin-top: 10px;
+  }
+
+  .dot{
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+  }
+
+  /* ---------- Footer ---------- */
+
+  footer{
+    border-top: 1px solid var(--panel-line);
+    padding: 32px 0 48px;
+  }
+
+  .footer-row{
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: center;
+    color: var(--ink-dim);
+    font-size: 0.9rem;
+  }
+
+  .footer-row a{
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+  }
+
+  .footer-row a:hover{
+    border-bottom-color: var(--cyan);
+  }
+
+  @media (max-width: 760px){
+    .panes{
+      grid-template-columns: 1fr;
+    }
+    .pane.tall{
+      grid-row: auto;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    html{ scroll-behavior: auto; }
+    .btn-primary{ transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    Astra
+  </div>
+</header>
+
+<main>
+
+  <section class="hero wrap">
+    <div class="hero-inner">
+      <h1>Describe it, or show it a photo. <span class="accent">Astra builds the 3D model.</span></h1>
+      <p>Astra is an AI-powered 3D model generator: type a description or upload an image, and it turns that into a textured model you can orbit, rig, and export — all in one browser workbench.</p>
+      <div class="cta-row">
+        <a class="btn-primary" href="https://ai-avatar-forge-3.preview.emergentagent.com/" target="_blank" rel="noopener">Open Astra</a>
+        <a class="btn-secondary" href="#showcase">See how it works</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="showcase wrap" id="showcase">
+    <div class="showcase-head">
+      <h2>Two ways to start a model</h2>
+      <p>Write what you're picturing, or hand Astra a photo to work from — either way, it hands back a model ready to inspect.</p>
+    </div>
+
+    <div class="panes">
+      <div class="pane tall">
+        <img src="assets/screenshot-image.png" alt="Astra's 3D Studio with a photo of a person uploaded, next to three generated humanoid mesh previews named Cobalt, Crimson, and Emerald.">
+        <div class="pane-caption">
+          <div class="kicker">Start from a photo</div>
+          <p>Upload an image and Astra generates a few textured previews to pick from before building the full model.</p>
+        </div>
+      </div>
+
+      <div class="pane">
+        <img src="assets/screenshot-describe.png" alt="Astra's 3D Studio with a text prompt field and three glowing robot wireframe previews named Aqua, Bubblegum, and Sunburst.">
+        <div class="pane-caption">
+          <div class="kicker">Start from a description</div>
+          <p>Type what you want and choose from a set of generated previews to build from.</p>
+        </div>
+      </div>
+
+      <div class="side-note">
+        <h3>Once it's built</h3>
+        <p><span class="dot" style="background:var(--cyan)"></span>Orbit, zoom, and pan around the finished model</p>
+        <p><span class="dot" style="background:var(--magenta)"></span>Export it for use elsewhere, rigged and ready</p>
+        <p><span class="dot" style="background:var(--blue)"></span>Switch over to Realtime Avatar mode for live use</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <div class="footer-row">
+    <span>Astra — AI 3D Avatar Studio</span>
+    <a href="https://ai-avatar-forge-3.preview.emergentagent.com/" target="_blank" rel="noopener">Live app ↗</a>
+  </div>
+</footer>
+
+</body>
+</html>
